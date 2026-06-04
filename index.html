@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Instagram Advanced Downloader</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --panel-strong: #ffffff;
+      --text: #1f2328;
+      --muted: #667085;
+      --line: #d9dee7;
+      --primary: #0f7abf;
+      --primary-hover: #0b649d;
+      --soft: #eef4f8;
+      --item: #ffffff;
+      --status-bg: #17202a;
+      --status-text: #d1fadf;
+      --danger-soft: #fff4e5;
+    }
+
+    body.dark {
+      --bg: #101418;
+      --panel: #171c22;
+      --panel-strong: #1d242c;
+      --text: #edf2f7;
+      --muted: #a2adba;
+      --line: #303946;
+      --primary: #2f9ce5;
+      --primary-hover: #54afe9;
+      --soft: #232b34;
+      --item: #1c222a;
+      --status-bg: #0b0f14;
+      --status-text: #9ff0bd;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+    }
+
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .app-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      font-size: 26px;
+      line-height: 1.2;
+      margin: 0 0 4px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .input-section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      display: grid;
+      grid-template-columns: minmax(220px, 320px) 1fr auto;
+      gap: 14px;
+      align-items: end;
+    }
+
+    .account-bar {
+      margin-bottom: 12px;
+      display: grid;
+      grid-template-columns: 1fr 1.4fr;
+      gap: 12px;
+    }
+
+    .account-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .account-panel h2 {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.2;
+    }
+
+    .account-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .account-actions {
+      display: flex;
+      gap: 8px;
+      min-width: 210px;
+    }
+
+    select {
+      width: 100%;
+      min-height: 42px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel-strong);
+      color: var(--text);
+      font: inherit;
+      outline: none;
+    }
+
+    .form-group { min-width: 0; }
+    label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; color: var(--muted); }
+
+    input[type="text"], textarea {
+      width: 100%;
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel-strong);
+      color: var(--text);
+      font: inherit;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+
+    input[type="text"]:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(15, 122, 191, .14);
+    }
+
+    textarea { height: 44px; min-height: 44px; max-height: 120px; resize: vertical; }
+    .btn-group { display: flex; gap: 10px; min-width: 260px; }
+
+    button {
+      flex: 1;
+      min-height: 44px;
+      padding: 0 14px;
+      background-color: var(--primary);
+      border: 1px solid var(--primary);
+      color: white;
+      font-weight: 700;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    button:hover { background-color: var(--primary-hover); border-color: var(--primary-hover); }
+    button:disabled { opacity: .65; cursor: wait; }
+    button.secondary { background-color: var(--panel-strong); color: var(--text); border-color: var(--line); }
+    button.secondary:hover { background-color: var(--soft); border-color: #c6d2dd; }
+
+    .theme-toggle {
+      flex: 0 0 auto;
+      min-height: 38px;
+      padding: 0 12px;
+      background: var(--panel);
+      color: var(--text);
+      border-color: var(--line);
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .summary:empty { display: none; }
+
+    .summary div {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .summary strong { display: block; font-size: 18px; line-height: 1.2; }
+    .summary span { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+    .content-sections {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .section-box {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-height: 360px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .section-box h2 {
+      font-size: 16px;
+      margin: 0;
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .content-list {
+      flex-grow: 1;
+      overflow-y: auto;
+      max-height: 520px;
+      padding: 10px;
+    }
+
+    .media-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding: 8px;
+      border: 1px solid #eef0f3;
+      border-radius: 7px;
+      background: var(--item);
+      cursor: pointer;
+      transition: border-color .15s, transform .15s, background .15s;
+    }
+
+    .media-item:hover {
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+
+    .thumb-wrap {
+      width: 58px;
+      height: 58px;
+      flex: 0 0 58px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--soft);
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 11px;
+      text-align: center;
+      padding: 4px;
+    }
+
+    .thumb-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .media-info { min-width: 0; flex-grow: 1; font-size: 12px; }
+    .media-info strong, .media-info span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .media-info span { color: var(--muted); margin-top: 3px; }
+    .bulk-dl-btn { flex: 0 0 auto; min-height: 32px; font-size: 12px; padding: 0 10px; }
+
+    .empty-state {
+      min-height: 120px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+      background: var(--panel-strong);
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 13px;
+    }
+
+    #status {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: var(--status-bg);
+      color: var(--status-text);
+      border-radius: 8px;
+      font-family: "Cascadia Mono", Consolas, monospace;
+      font-size: 12px;
+      max-height: 150px; overflow-y: auto; white-space: pre-wrap;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(6, 10, 15, .72);
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .preview-modal {
+      width: min(900px, 96vw);
+      max-height: 92vh;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, .35);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .modal-title {
+      min-width: 0;
+      font-size: 14px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+
+    .modal-action {
+      flex: 0 0 auto;
+      min-height: 34px;
+      padding: 0 12px;
+      font-size: 12px;
+    }
+
+    .modal-close {
+      flex: 0 0 auto;
+      min-height: 34px;
+      padding: 0 12px;
+      background: var(--panel-strong);
+      color: var(--text);
+      border-color: var(--line);
+    }
+
+    .modal-body {
+      position: relative;
+      min-height: 280px;
+      max-height: calc(92vh - 60px);
+      display: grid;
+      place-items: center;
+      background: #05070a;
+      color: #d0d7de;
+      padding: 12px;
+    }
+
+    .modal-body img,
+    .modal-body video {
+      max-width: 100%;
+      max-height: calc(92vh - 92px);
+      border-radius: 6px;
+      object-fit: contain;
+      background: #05070a;
+    }
+
+    .preview-stage {
+      width: 100%;
+      display: grid;
+      place-items: center;
+    }
+
+    .slide-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 44px;
+      height: 44px;
+      min-height: 44px;
+      padding: 0;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .92);
+      border-color: rgba(255, 255, 255, .92);
+      color: #111827;
+      font-size: 24px;
+      line-height: 1;
+      z-index: 2;
+    }
+
+    .slide-nav:hover {
+      background: #ffffff;
+      border-color: #ffffff;
+    }
+
+    .slide-nav.prev { left: 18px; }
+    .slide-nav.next { right: 18px; }
+
+    .slide-nav:disabled {
+      display: none;
+    }
+
+    .slide-count {
+      position: absolute;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, .62);
+      color: #ffffff;
+      font-size: 12px;
+      z-index: 2;
+    }
+
+    @media (max-width: 900px) {
+      .account-bar { grid-template-columns: 1fr; }
+      .account-actions { min-width: 0; }
+      .account-row { grid-template-columns: 1fr; }
+      .input-section { grid-template-columns: 1fr; }
+      .btn-group { min-width: 0; }
+      .content-sections { grid-template-columns: 1fr; }
+      .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="app-header">
+      <div>
+        <h1>Instagram Bulk Downloader</h1>
+        <p class="subtitle">Preview stories, highlights, and posts before downloading.</p>
+      </div>
+      <button id="themeToggle" class="theme-toggle" type="button">Dark mode</button>
+    </header>
+
+    <div class="account-bar">
+      <div class="account-panel">
+        <h2>Saved Targets</h2>
+        <div class="account-row">
+          <div class="form-group">
+            <label for="targetSelect">Target Username</label>
+            <select id="targetSelect">
+              <option value="">No saved targets</option>
+            </select>
+          </div>
+          <div class="account-actions">
+            <button id="saveTargetBtn" type="button">Save Target</button>
+            <button id="deleteTargetBtn" class="secondary" type="button">Delete</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="account-panel">
+        <h2>Saved Cookies</h2>
+        <div class="account-row">
+          <div class="form-group">
+            <label for="cookieSelect">Cookie Account</label>
+            <select id="cookieSelect">
+              <option value="">No saved cookies</option>
+            </select>
+          </div>
+          <div class="account-actions">
+            <button id="saveCookieBtn" type="button">Save Cookies</button>
+            <button id="deleteCookieBtn" class="secondary" type="button">Delete</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="cookieLabel">Cookie Label</label>
+          <input type="text" id="cookieLabel" placeholder="e.g. my main account">
+        </div>
+      </div>
+    </div>
+    
+    <div class="input-section">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" placeholder="Instagram username">
+      </div>
+      <div class="form-group">
+        <label for="cookies">Cookies</label>
+        <textarea id="cookies" placeholder="Paste cookie string or exported JSON cookies"></textarea>
+      </div>
+      <div class="btn-group">
+        <button id="fetchBtn">Fetch Preview</button>
+        <button id="bulkAllBtn" class="secondary">Download All</button>
+      </div>
+    </div>
+
+    <div id="status">Ready. Enter username and cookies, then click Fetch.</div>
+    <div id="profileSummary" class="summary"></div>
+
+    <div class="content-sections">
+      <!-- Stories Section -->
+      <div class="section-box" id="stories-section">
+        <h2>Stories <button class="bulk-dl-btn" onclick="bulkDownload('stories')">Download</button></h2>
+        <div id="stories-list" class="content-list">No stories fetched.</div>
+      </div>
+
+      <!-- Highlights Section -->
+      <div class="section-box" id="highlights-section">
+        <h2>Highlights <button class="bulk-dl-btn" onclick="bulkDownload('highlights')">Download</button></h2>
+        <div id="highlights-list" class="content-list">No highlights fetched.</div>
+      </div>
+
+      <!-- Posts Section -->
+      <div class="section-box" id="posts-section">
+        <h2>Posts <button class="bulk-dl-btn" onclick="bulkDownload('posts')">Download</button></h2>
+        <div id="posts-list" class="content-list">No posts fetched.</div>
+      </div>
+    </div>
+  </div>
+  <div id="previewModal" class="modal-backdrop" aria-hidden="true">
+    <div class="preview-modal" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+      <div class="modal-header">
+        <div id="previewTitle" class="modal-title">Preview</div>
+        <div class="modal-actions">
+          <button id="previewDownload" class="modal-action" type="button">Download</button>
+          <button id="previewDownloadImage" class="modal-action secondary" type="button">Download as Image</button>
+          <button id="previewClose" class="modal-close" type="button">Close</button>
+        </div>
+      </div>
+      <div id="previewBody" class="modal-body">Loading preview...</div>
+    </div>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>

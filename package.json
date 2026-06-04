@@ -1,0 +1,55 @@
+{
+  "name": "instagram-bulk-downloader",
+  "version": "1.0.0",
+  "description": "Electron app for previewing and downloading Instagram posts, stories, and highlights with saved target/cookie profiles.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win portable",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "build": {
+    "appId": "com.local.instagrambulkdownloader",
+    "productName": "Instagram Bulk Downloader",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "main.js",
+      "renderer.js",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "python-portable",
+        "to": "python-portable"
+      },
+      {
+        "from": "downloader.py",
+        "to": "downloader.py"
+      }
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ]
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-Windows-Portable.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^26.8.1"
+  },
+  "dependencies": {
+    "axios": "^1.17.0",
+    "fs-extra": "^11.3.5"
+  }
+}

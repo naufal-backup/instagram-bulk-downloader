@@ -1,0 +1,12 @@
+node_modules/
+dist/
+downloads/
+data/
+__pycache__/
+*.pyc
+*.pyo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+get-pip.py
+.DS_Store
