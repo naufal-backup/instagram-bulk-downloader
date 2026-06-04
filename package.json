@@ -23,6 +23,7 @@
       "main.js",
       "renderer.js",
       "package.json",
+      "assets/**/*",
       "node_modules/**/*"
     ],
     "extraResources": [
@@ -36,6 +37,7 @@
       }
     ],
     "win": {
+      "icon": "assets/app-icon.ico",
       "target": [
         "portable"
       ]
