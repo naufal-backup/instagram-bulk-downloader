@@ -108,6 +108,7 @@ function renderList(elementId, items, label) {
         <strong>${title}</strong>
         <span>${badge} &middot; ${escapeHtml(id.substring(0, 18))}${id.length > 18 ? '...' : ''}</span>
       </div>
+      <button class="item-download-btn" type="button">${getItemDownloadButtonLabel(slides)}</button>
     `;
 
     div.addEventListener('click', () => openPreview({ ...item, label, title, previewUrl, slides }));
@@ -117,6 +118,14 @@ function renderList(elementId, items, label) {
         openPreview({ ...item, label, title, previewUrl, slides });
       }
     });
+
+    const downloadBtn = div.querySelector('.item-download-btn');
+    downloadBtn.disabled = slides.length === 0;
+    downloadBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      downloadItemSlides({ ...item, label, title, previewUrl, slides }, downloadBtn);
+    });
+
     list.appendChild(div);
 
     if (thumb) {
@@ -132,6 +141,65 @@ window.bulkDownload = (type) => {
   if (!items || items.length === 0) return alert('Tidak ada item untuk di-download.');
   ipcRenderer.send('bulk-download', { type, items, username, cookies });
 };
+
+function getItemDownloadButtonLabel(slides) {
+  return slides.length > 1 ? `Download ${slides.length}` : 'Download';
+}
+
+async function downloadItemSlides(item, button) {
+  const slides = normalizeSlides(item);
+  if (slides.length === 0) return alert('Media tidak tersedia untuk di-download.');
+
+  const username = usernameInput.value.trim() || 'instagram';
+  const cookies = getProcessedCookies();
+  const label = item.label || 'media';
+  const mediaId = item.shortcode || item.id || Date.now();
+  const originalText = button.innerText;
+  let successCount = 0;
+  let lastError = '';
+
+  button.disabled = true;
+  button.innerText = 'Downloading...';
+
+  try {
+    for (const [index, slide] of slides.entries()) {
+      const isVideo = slide.type === 'video' && slide.videoUrl;
+      const sourceUrl = slide.videoUrl || slide.url;
+      if (!sourceUrl) continue;
+
+      button.innerText = `${index + 1}/${slides.length}`;
+      const suffix = isVideo ? 'video' : 'image';
+      const filenameBase = `${username}-${label}-${mediaId}-slide-${index + 1}-${suffix}`;
+      const result = await ipcRenderer.invoke('download-preview-media', {
+        url: sourceUrl,
+        cookies,
+        filenameBase,
+        forcedExtension: '',
+        targetUsername: username,
+        folderType: isVideo ? 'video' : 'gambar',
+      });
+
+      if (result?.ok) {
+        successCount += 1;
+      } else {
+        lastError = result?.error || 'unknown error';
+      }
+    }
+
+    if (successCount === 0) {
+      alert(`Download gagal: ${lastError || 'media tidak tersedia'}`);
+      return;
+    }
+
+    log(`Downloaded ${successCount}/${slides.length} media dari ${label} ${mediaId}.`);
+    if (successCount < slides.length) {
+      alert(`Sebagian media gagal di-download (${successCount}/${slides.length}). Error terakhir: ${lastError}`);
+    }
+  } finally {
+    button.disabled = slides.length === 0;
+    button.innerText = originalText;
+  }
+}
 
 document.getElementById('bulkAllBtn').addEventListener('click', () => {
   ['stories', 'highlights', 'posts'].forEach(type => window.bulkDownload(type));
