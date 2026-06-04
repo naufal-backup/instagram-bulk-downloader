@@ -270,6 +270,12 @@
     .media-info strong, .media-info span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .media-info span { color: var(--muted); margin-top: 3px; }
     .bulk-dl-btn { flex: 0 0 auto; min-height: 32px; font-size: 12px; padding: 0 10px; }
+    .item-actions {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 6px;
+    }
+
     .item-download-btn {
       flex: 0 0 auto;
       min-height: 30px;
@@ -347,8 +353,26 @@
 
     .modal-actions {
       display: flex;
+      align-items: center;
       gap: 8px;
       flex: 0 0 auto;
+    }
+
+    .modal-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .modal-toggle input {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: var(--primary);
     }
 
     .modal-action {
@@ -538,6 +562,7 @@
       <div class="modal-header">
         <div id="previewTitle" class="modal-title">Preview</div>
         <div class="modal-actions">
+          <label class="modal-toggle"><input id="previewMuteSound" type="checkbox">Mute</label>
           <button id="previewDownload" class="modal-action" type="button">Download</button>
           <button id="previewDownloadImage" class="modal-action secondary" type="button">Download as Image</button>
           <button id="previewClose" class="modal-close" type="button">Close</button>

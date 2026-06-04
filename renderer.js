@@ -18,6 +18,7 @@ const previewTitle = document.getElementById('previewTitle');
 const previewBody = document.getElementById('previewBody');
 const previewDownload = document.getElementById('previewDownload');
 const previewDownloadImage = document.getElementById('previewDownloadImage');
+const previewMuteSound = document.getElementById('previewMuteSound');
 const previewClose = document.getElementById('previewClose');
 
 let fetchedData = { posts: [], highlights: [], stories: [] };
@@ -27,8 +28,10 @@ let savedTargets = [];
 let savedCookies = [];
 const previewCache = new Map();
 const legacyAccountStorageKey = 'cookieAccounts';
+const previewMutedStorageKey = 'previewMuted';
 
 initTheme();
+initPreviewMute();
 initSavedData();
 
 function log(message) {
@@ -108,7 +111,10 @@ function renderList(elementId, items, label) {
         <strong>${title}</strong>
         <span>${badge} &middot; ${escapeHtml(id.substring(0, 18))}${id.length > 18 ? '...' : ''}</span>
       </div>
-      <button class="item-download-btn" type="button">${getItemDownloadButtonLabel(slides)}</button>
+      <div class="item-actions">
+        <button class="item-download-btn" type="button">${getItemDownloadButtonLabel(slides, 'media')}</button>
+        <button class="item-download-btn secondary" type="button">${getItemDownloadButtonLabel(slides, 'image')}</button>
+      </div>
     `;
 
     div.addEventListener('click', () => openPreview({ ...item, label, title, previewUrl, slides }));
@@ -119,11 +125,16 @@ function renderList(elementId, items, label) {
       }
     });
 
-    const downloadBtn = div.querySelector('.item-download-btn');
+    const [downloadBtn, downloadImageBtn] = div.querySelectorAll('.item-download-btn');
     downloadBtn.disabled = slides.length === 0;
+    downloadImageBtn.disabled = !slides.some(slide => slide.url);
     downloadBtn.addEventListener('click', (event) => {
       event.stopPropagation();
-      downloadItemSlides({ ...item, label, title, previewUrl, slides }, downloadBtn);
+      downloadItemSlides({ ...item, label, title, previewUrl, slides }, downloadBtn, 'media');
+    });
+    downloadImageBtn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      downloadItemSlides({ ...item, label, title, previewUrl, slides }, downloadImageBtn, 'image');
     });
 
     list.appendChild(div);
@@ -142,11 +153,12 @@ window.bulkDownload = (type) => {
   ipcRenderer.send('bulk-download', { type, items, username, cookies });
 };
 
-function getItemDownloadButtonLabel(slides) {
+function getItemDownloadButtonLabel(slides, mode) {
+  if (mode === 'image') return slides.length > 1 ? `Image ${slides.length}` : 'Image';
   return slides.length > 1 ? `Download ${slides.length}` : 'Download';
 }
 
-async function downloadItemSlides(item, button) {
+async function downloadItemSlides(item, button, mode = 'media') {
   const slides = normalizeSlides(item);
   if (slides.length === 0) return alert('Media tidak tersedia untuk di-download.');
 
@@ -164,11 +176,11 @@ async function downloadItemSlides(item, button) {
   try {
     for (const [index, slide] of slides.entries()) {
       const isVideo = slide.type === 'video' && slide.videoUrl;
-      const sourceUrl = slide.videoUrl || slide.url;
+      const sourceUrl = mode === 'image' ? slide.url : (slide.videoUrl || slide.url);
       if (!sourceUrl) continue;
 
       button.innerText = `${index + 1}/${slides.length}`;
-      const suffix = isVideo ? 'video' : 'image';
+      const suffix = mode === 'image' ? 'image' : (isVideo ? 'video' : 'image');
       const filenameBase = `${username}-${label}-${mediaId}-slide-${index + 1}-${suffix}`;
       const result = await ipcRenderer.invoke('download-preview-media', {
         url: sourceUrl,
@@ -176,7 +188,7 @@ async function downloadItemSlides(item, button) {
         filenameBase,
         forcedExtension: '',
         targetUsername: username,
-        folderType: isVideo ? 'video' : 'gambar',
+        folderType: mode === 'media' && isVideo ? 'video' : 'gambar',
       });
 
       if (result?.ok) {
@@ -196,7 +208,7 @@ async function downloadItemSlides(item, button) {
       alert(`Sebagian media gagal di-download (${successCount}/${slides.length}). Error terakhir: ${lastError}`);
     }
   } finally {
-    button.disabled = slides.length === 0;
+    button.disabled = mode === 'image' ? !slides.some(slide => slide.url) : slides.length === 0;
     button.innerText = originalText;
   }
 }
@@ -302,6 +314,11 @@ themeToggle.addEventListener('click', () => {
 previewClose.addEventListener('click', closePreview);
 previewDownload.addEventListener('click', () => downloadCurrentPreview('media'));
 previewDownloadImage.addEventListener('click', () => downloadCurrentPreview('image'));
+previewMuteSound.addEventListener('change', () => {
+  localStorage.setItem(previewMutedStorageKey, previewMuteSound.checked ? 'true' : 'false');
+  const video = previewBody.querySelector('video');
+  if (video) video.muted = previewMuteSound.checked;
+});
 
 previewModal.addEventListener('click', (event) => {
   if (event.target === previewModal) {
@@ -576,6 +593,7 @@ async function showPreviewSlide(index) {
     video.src = dataUrl;
     video.controls = true;
     video.autoplay = true;
+    video.muted = previewMuteSound.checked;
     video.playsInline = true;
     stage.appendChild(video);
   } else {
@@ -704,6 +722,11 @@ function applyTheme(theme) {
   const isDark = theme === 'dark';
   document.body.classList.toggle('dark', isDark);
   themeToggle.innerText = isDark ? 'Light mode' : 'Dark mode';
+}
+
+function initPreviewMute() {
+  const saved = localStorage.getItem(previewMutedStorageKey);
+  previewMuteSound.checked = saved === null ? true : saved === 'true';
 }
 
 function escapeHtml(value) {
