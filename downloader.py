@@ -299,19 +299,43 @@ def main():
     username = sys.argv[2]
     cookies_str = sys.argv[3]
 
+    if command == 'check-privacy':
+        headers = get_headers(cookies_str, username) if cookies_str else {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        }
+        try:
+            url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
+            res = requests.get(url, headers=headers)
+            if res.status_code == 200:
+                user = res.json()['data']['user']
+                print(json.dumps({
+                    "is_private": user['is_private'],
+                    "profile_pic_url": user['profile_pic_url_hd'],
+                    "username": user['username'],
+                    "id": user['id']
+                }))
+            else:
+                print(json.dumps({"error": f"Failed to check privacy ({res.status_code})"}))
+        except Exception as e:
+            print(json.dumps({"error": str(e)}))
+        return
+
     if command == 'fetch':
-        headers = get_headers(cookies_str, username)
+        headers = get_headers(cookies_str, username) if cookies_str else {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        }
         print("[PROGRESS] 5%")
         try:
             L = make_loader()
-            verify_and_setup_session(L, cookies_str)
+            if cookies_str:
+                verify_and_setup_session(L, cookies_str)
             print("[PROGRESS] 15%")
 
             url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
             res = requests.get(url, headers=headers)
             
             if res.status_code != 200:
-                print(json.dumps({"error": f"Profile fetch failed ({res.status_code}). Session might be invalid or expired."}))
+                print(json.dumps({"error": f"Profile fetch failed ({res.status_code}). Session might be invalid or required for this account."}))
                 return
 
             print("[PROGRESS] 25%")
@@ -319,58 +343,63 @@ def main():
             user = data['data']['user']
             
             posts = []
-            try:
-                posts = get_posts_from_feed_api(user['id'], headers)
-            except Exception:
-                posts = []
-            if not posts:
+            if not user['is_private'] or cookies_str:
                 try:
-                    posts = get_posts_from_profile_api(user)
+                    posts = get_posts_from_feed_api(user['id'], headers)
                 except Exception:
                     posts = []
-            if not posts:
-                try:
-                    posts = get_posts_from_instaloader(L, user['id'])
-                except Exception:
-                    posts = []
+                if not posts:
+                    try:
+                        posts = get_posts_from_profile_api(user)
+                    except Exception:
+                        posts = []
+                if not posts:
+                    try:
+                        posts = get_posts_from_instaloader(L, user['id'])
+                    except Exception:
+                        posts = []
 
             print("[PROGRESS] 50%")
             highlights = []
-            h_url = f"https://www.instagram.com/api/v1/highlights/{user['id']}/highlights_tray/"
-            h_res = requests.get(h_url, headers=headers)
-            if h_res.status_code == 200:
-                tray = h_res.json().get('tray', [])
-                tray_len = len(tray)
-                for i, h in enumerate(tray):
-                    highlight_id = h['id']
-                    slides = get_highlight_slides(highlight_id, headers)
-                    cover = h['cover_media']['cropped_image_version']['url']
-                    highlights.append({
-                        "id": highlight_id,
-                        "title": h['title'],
-                        "cover": cover,
-                        "url": slides[0]["url"] if slides else cover,
-                        "videoUrl": slides[0].get("videoUrl", "") if slides else "",
-                        "type": "highlight",
-                        "slides": slides
-                    })
-                    # Progress from 50% to 80% for highlights
-                    p = 50 + int((i + 1) / tray_len * 30) if tray_len > 0 else 80
-                    print(f"[PROGRESS] {p}%")
-            else:
-                print("[PROGRESS] 80%")
+            if not user['is_private'] or cookies_str:
+                h_url = f"https://www.instagram.com/api/v1/highlights/{user['id']}/highlights_tray/"
+                h_res = requests.get(h_url, headers=headers)
+                if h_res.status_code == 200:
+                    tray = h_res.json().get('tray', [])
+                    tray_len = len(tray)
+                    for i, h in enumerate(tray):
+                        highlight_id = h['id']
+                        slides = get_highlight_slides(highlight_id, headers)
+                        cover = h['cover_media']['cropped_image_version']['url']
+                        highlights.append({
+                            "id": highlight_id,
+                            "title": h['title'],
+                            "cover": cover,
+                            "url": slides[0]["url"] if slides else cover,
+                            "videoUrl": slides[0].get("videoUrl", "") if slides else "",
+                            "type": "highlight",
+                            "slides": slides
+                        })
+                        # Progress from 50% to 80% for highlights
+                        p = 50 + int((i + 1) / tray_len * 30) if tray_len > 0 else 80
+                        print(f"[PROGRESS] {p}%")
+                else:
+                    print("[PROGRESS] 80%")
 
-            stories = get_stories_from_api(user['id'], headers)
-            if not stories:
-                try:
-                    stories = get_stories_from_instaloader(L, user['id'])
-                except Exception:
-                    stories = []
+            stories = []
+            if not user['is_private'] or cookies_str:
+                stories = get_stories_from_api(user['id'], headers)
+                if not stories:
+                    try:
+                        stories = get_stories_from_instaloader(L, user['id'])
+                    except Exception:
+                        stories = []
 
             print("[PROGRESS] 95%")
             print(json.dumps({
                 "posts": posts, "highlights": highlights, "stories": stories,
                 "userId": user['id'], "is_private": user['is_private'],
+                "profile_pic_url": user['profile_pic_url_hd'],
                 "followed_by_viewer": user.get('followed_by_viewer', False),
                 "counts": {
                     "posts": user.get('edge_owner_to_timeline_media', {}).get('count'),

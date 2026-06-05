@@ -6,6 +6,11 @@ const cookiesInput = document.getElementById('cookies');
 const statusDiv = document.getElementById('status');
 const progressBar = document.getElementById('progressBar');
 const progressContainer = document.querySelector('.progress-container');
+const profileHeader = document.getElementById('profileHeader');
+const profilePicWrap = document.getElementById('profilePicWrap');
+const profileName = document.getElementById('profileName');
+const privacyBadge = document.getElementById('privacyBadge');
+const downloadProfilePicBtn = document.getElementById('downloadProfilePicBtn');
 const profileSummary = document.getElementById('profileSummary');
 const themeToggle = document.getElementById('themeToggle');
 const targetSelect = document.getElementById('targetSelect');
@@ -36,6 +41,63 @@ initTheme();
 initPreviewMute();
 initSavedData();
 
+let privacyCheckTimeout = null;
+
+usernameInput.addEventListener('input', () => {
+  clearTimeout(privacyCheckTimeout);
+  const username = usernameInput.value.trim();
+  if (username.length < 3) {
+    profileHeader.style.display = 'none';
+    return;
+  }
+
+  privacyCheckTimeout = setTimeout(() => {
+    ipcRenderer.send('check-privacy', { username, cookies: getProcessedCookies() });
+  }, 600);
+});
+
+ipcRenderer.on('privacy-status', (event, data) => {
+  if (data.error) return;
+  
+  profileHeader.style.display = 'grid';
+  profileName.innerText = data.username || usernameInput.value.trim();
+  
+  privacyBadge.innerText = data.is_private ? 'PRIVATE' : 'PUBLIC';
+  privacyBadge.style.background = data.is_private ? 'var(--danger-soft)' : 'var(--soft)';
+  privacyBadge.style.color = data.is_private ? '#9a6700' : 'var(--primary)';
+
+  if (data.profile_pic_url) {
+    loadPreviewImage(profilePicWrap, data.profile_pic_url);
+    downloadProfilePicBtn.onclick = () => downloadProfilePic(data.profile_pic_url, data.username);
+    profilePicWrap.onclick = () => openPreview({
+      url: data.profile_pic_url,
+      title: `Profile Picture: ${data.username}`,
+      label: 'profile-pic',
+      type: 'image'
+    });
+  }
+});
+
+async function downloadProfilePic(url, username) {
+  const filenameBase = `${username}-profile-pic-${Date.now()}`;
+  downloadProfilePicBtn.disabled = true;
+  downloadProfilePicBtn.innerText = 'Downloading...';
+  
+  try {
+    const result = await ipcRenderer.invoke('download-preview-media', {
+      url,
+      cookies: getProcessedCookies(),
+      filenameBase,
+      targetUsername: username,
+      folderType: 'gambar',
+    });
+    if (result?.ok) log(`Downloaded profile pic: ${result.path}`);
+  } finally {
+    downloadProfilePicBtn.disabled = false;
+    downloadProfilePicBtn.innerText = 'Download Profile Picture';
+  }
+}
+
 function log(message) {
   const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   statusDiv.innerText = `[${time}] ${message}`;
@@ -61,7 +123,7 @@ function getProcessedCookies() {
 fetchBtn.addEventListener('click', () => {
   const username = usernameInput.value.trim();
   const cookies = getProcessedCookies();
-  if (!username || !cookies) return alert('Masukkan username dan cookies dulu.');
+  if (!username) return alert('Masukkan username dulu.');
 
   previewCache.clear();
   setFetching(true);
@@ -92,6 +154,25 @@ ipcRenderer.on('status-update', (event, message) => {
 ipcRenderer.on('preview-data', (event, data) => {
   fetchedData = normalizePreviewData(data);
   renderSummary(fetchedData);
+  
+  profileHeader.style.display = 'grid';
+  profileName.innerText = usernameInput.value.trim();
+  
+  privacyBadge.innerText = data.is_private ? 'PRIVATE' : 'PUBLIC';
+  privacyBadge.style.background = data.is_private ? 'var(--danger-soft)' : 'var(--soft)';
+  privacyBadge.style.color = data.is_private ? '#9a6700' : 'var(--primary)';
+
+  if (data.profile_pic_url) {
+    loadPreviewImage(profilePicWrap, data.profile_pic_url);
+    downloadProfilePicBtn.onclick = () => downloadProfilePic(data.profile_pic_url, usernameInput.value.trim());
+    profilePicWrap.onclick = () => openPreview({
+      url: data.profile_pic_url,
+      title: `Profile Picture: ${usernameInput.value.trim()}`,
+      label: 'profile-pic',
+      type: 'image'
+    });
+  }
+
   renderList('stories-list', fetchedData.stories, 'Story');
   renderList('highlights-list', fetchedData.highlights, 'Highlight');
   renderList('posts-list', fetchedData.posts, 'Post');

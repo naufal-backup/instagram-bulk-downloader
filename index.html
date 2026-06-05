@@ -553,6 +553,20 @@
 
     <div id="status">Ready. Enter username and cookies, then click Fetch.</div>
     <div class="progress-container"><div id="progressBar" class="progress-bar"></div></div>
+    
+    <div id="profileHeader" class="account-panel" style="margin-top: 14px; display: none; grid-template-columns: auto 1fr; align-items: center; gap: 20px;">
+      <div id="profilePicWrap" class="thumb-wrap" style="width: 100px; height: 100px; flex: 0 0 100px; cursor: pointer;">
+        <span>No image</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <h2 id="profileName" style="font-size: 20px;">Username</h2>
+        <div style="display: flex; gap: 10px;">
+          <button id="downloadProfilePicBtn" class="item-download-btn" style="flex: 0 0 auto; height: 36px; padding: 0 15px;">Download Profile Picture</button>
+          <span id="privacyBadge" style="padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold;"></span>
+        </div>
+      </div>
+    </div>
+
     <div id="profileSummary" class="summary"></div>
 
     <div class="content-sections">

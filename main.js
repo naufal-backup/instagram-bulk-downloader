@@ -86,6 +86,17 @@ ipcMain.on('fetch-preview', async (event, { username, cookies }) => {
   });
 });
 
+// IPC: Check Privacy
+ipcMain.on('check-privacy', async (event, { username, cookies }) => {
+  execFile(pythonExe, [bridgePath, 'check-privacy', username, cookies || ''], (error, stdout, stderr) => {
+    if (error) return;
+    try {
+      const data = JSON.parse(stdout);
+      event.reply('privacy-status', data);
+    } catch (e) {}
+  });
+});
+
 // IPC: Bulk Download
 ipcMain.on('bulk-download', async (event, { type, username, cookies }) => {
   const log = (msg) => event.reply('status-update', msg);
