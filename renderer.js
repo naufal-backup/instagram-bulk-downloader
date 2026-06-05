@@ -57,13 +57,28 @@ usernameInput.addEventListener('input', () => {
     return;
   }
 
+  // Visual feedback that something is happening
+  profileHeader.style.display = 'grid';
+  profileName.innerText = username;
+  privacyBadge.innerText = 'Checking...';
+  privacyBadge.style.background = 'var(--soft)';
+  privacyBadge.style.color = 'var(--primary)';
+  profilePicWrap.innerHTML = '<span>...</span>';
+  profileSummary.innerHTML = '';
+
   privacyCheckTimeout = setTimeout(() => {
     ipcRenderer.send('check-privacy', { username, cookies: getProcessedCookies() });
-  }, 600);
+  }, 800);
 });
 
 ipcRenderer.on('privacy-status', (event, data) => {
-  if (data.error) return;
+  if (data.error) {
+    privacyBadge.innerText = data.needs_login ? 'LOGIN REQUIRED' : 'ERROR';
+    privacyBadge.style.background = 'var(--danger-soft)';
+    privacyBadge.style.color = '#9a6700';
+    profilePicWrap.innerHTML = '<span>No Preview</span>';
+    return;
+  }
   
   profileHeader.style.display = 'grid';
   profileName.innerText = data.username || usernameInput.value.trim();
@@ -71,6 +86,16 @@ ipcRenderer.on('privacy-status', (event, data) => {
   privacyBadge.innerText = data.is_private ? 'PRIVATE' : 'PUBLIC';
   privacyBadge.style.background = data.is_private ? 'var(--danger-soft)' : 'var(--soft)';
   privacyBadge.style.color = data.is_private ? '#9a6700' : 'var(--primary)';
+
+  if (data.counts) {
+    renderSummary({
+        is_private: data.is_private,
+        followed_by_viewer: data.followed_by_viewer || false,
+        posts: { length: data.counts.posts || 0 },
+        stories: { length: data.counts.stories || 0 },
+        highlights: { length: data.counts.highlights || 0 }
+    });
+  }
 
   if (data.profile_pic_url) {
     loadPreviewImage(profilePicWrap, data.profile_pic_url);

@@ -18,7 +18,7 @@ def get_headers(cookies_str="", username=""):
                 csrf_token = parts[1].strip()
             break
             
-    return {
+    headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
         'Accept': '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
@@ -27,8 +27,10 @@ def get_headers(cookies_str="", username=""):
         'X-CSRFToken': csrf_token,
         'X-Requested-With': 'XMLHttpRequest',
         'Referer': f'https://www.instagram.com/{username}/' if username else 'https://www.instagram.com/',
-        'Cookie': cookies_str
     }
+    if cookies_str:
+        headers['Cookie'] = cookies_str
+    return headers
 
 def make_loader():
     return instaloader.Instaloader(
@@ -67,6 +69,26 @@ def apply_cookies_to_loader(L, cookies_str):
     })
     return cookies_dict
 
+def safe_json_response(res):
+    """
+    Safely parse JSON from a requests response.
+    Returns the parsed data or raises a descriptive Exception.
+    """
+    if res.status_code != 200:
+        raise Exception(f"HTTP Error {res.status_code}")
+    
+    content_type = res.headers.get('Content-Type', '')
+    if 'text/html' in content_type or 'accounts/login' in res.url:
+        raise Exception("Instagram redirected to login page. Please provide valid cookies.")
+    
+    try:
+        return res.json()
+    except Exception:
+        # If it's not JSON but was 200 OK and not explicitly HTML
+        if res.text.strip().startswith('<!DOCTYPE html>') or res.text.strip().startswith('<html'):
+            raise Exception("Received HTML response instead of JSON. Login might be required.")
+        raise Exception(f"Failed to parse JSON response: {res.text[:100]}...")
+
 def verify_and_setup_session(L, cookies_str):
     if not cookies_str:
         return True, "No cookies"
@@ -78,11 +100,8 @@ def verify_and_setup_session(L, cookies_str):
     test_url = "https://www.instagram.com/api/v1/users/web_profile_info/?username=instagram"
     res = requests.get(test_url, headers=headers)
     
-    if res.status_code != 200:
-        return False, f"Session invalid (Status {res.status_code})"
-
     try:
-        data = res.json()
+        data = safe_json_response(res)
         return True, "Success"
     except Exception as e:
         return False, str(e)
@@ -182,10 +201,11 @@ def get_posts_from_feed_api(user_id, headers):
             url += f"&max_id={urllib.parse.quote(str(next_max_id))}"
 
         res = requests.get(url, headers=headers)
-        if res.status_code != 200:
+        try:
+            data = safe_json_response(res)
+        except Exception:
             break
 
-        data = res.json()
         items = data.get('items', [])
         if not items:
             break
@@ -256,8 +276,9 @@ def get_highlight_slides(highlight_id, headers):
 
     h_items_url = f"https://www.instagram.com/api/v1/feed/reels_media/?reel_ids={urllib.parse.quote(reel_id)}"
     h_items_res = requests.get(h_items_url, headers=headers)
-    if h_items_res.status_code == 200:
-        reels = h_items_res.json().get('reels', {})
+    try:
+        data = safe_json_response(h_items_res)
+        reels = data.get('reels', {})
         reel = reels.get(reel_id) or reels.get(str(highlight_id)) or {}
         if not reel and reels:
             reel = next(iter(reels.values()), {})
@@ -265,18 +286,23 @@ def get_highlight_slides(highlight_id, headers):
             preview = story_preview_from_api_item(item)
             if preview.get("url"):
                 slides.append(preview)
+    except Exception:
+        pass
     return slides
 
 def get_stories_from_api(user_id, headers):
     stories = []
     s_url = f"https://www.instagram.com/api/v1/feed/reels_media/?reel_ids={user_id}"
     s_res = requests.get(s_url, headers=headers)
-    if s_res.status_code == 200:
-        reel = s_res.json().get('reels', {}).get(str(user_id), {})
+    try:
+        data = safe_json_response(s_res)
+        reel = data.get('reels', {}).get(str(user_id), {})
         for item in reel.get('items', []):
             preview = story_preview_from_api_item(item)
             if preview.get("url"):
                 stories.append(preview)
+    except Exception:
+        pass
     return stories
 
 def get_stories_from_instaloader(L, user_id):
@@ -305,18 +331,49 @@ def main():
         try:
             url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
             res = requests.get(url, headers=headers)
-            if res.status_code == 200:
-                user = res.json()['data']['user']
-                print(json.dumps({
-                    "is_private": user['is_private'],
-                    "profile_pic_url": user['profile_pic_url_hd'],
-                    "username": user['username'],
-                    "id": user['id']
-                }))
-            else:
-                print(json.dumps({"error": f"API Error ({res.status_code})", "needs_login": True}))
+            data = safe_json_response(res)
+            user = data['data']['user']
+            
+            # Basic info
+            result = {
+                "is_private": user['is_private'],
+                "profile_pic_url": user['profile_pic_url_hd'],
+                "username": user['username'],
+                "id": user['id'],
+                "followed_by_viewer": user.get('followed_by_viewer', False),
+                "counts": {
+                    "posts": user.get('edge_owner_to_timeline_media', {}).get('count', 0),
+                    "stories": 0,
+                    "highlights": user.get('highlight_reel_count', 0)
+                }
+            }
+            
+            # Optional extra counts if public or have cookies
+            if not user['is_private'] or cookies_str:
+                try:
+                    # Quick check for stories
+                    s_url = f"https://www.instagram.com/api/v1/feed/reels_media/?reel_ids={user['id']}"
+                    s_res = requests.get(s_url, headers=headers)
+                    s_data = safe_json_response(s_res)
+                    reel = s_data.get('reels', {}).get(str(user['id']), {})
+                    result["counts"]["stories"] = len(reel.get('items', []))
+                except Exception:
+                    pass
+                
+                try:
+                    # Quick check for highlights
+                    h_url = f"https://www.instagram.com/api/v1/highlights/{user['id']}/highlights_tray/"
+                    h_res = requests.get(h_url, headers=headers)
+                    h_data = safe_json_response(h_res)
+                    result["counts"]["highlights"] = len(h_data.get('tray', []))
+                except Exception:
+                    pass
+
+            print(json.dumps(result))
         except Exception as e:
-            print(json.dumps({"error": str(e)}))
+            msg = str(e)
+            needs_login = "login" in msg.lower() or "cookies" in msg.lower()
+            print(json.dumps({"error": msg, "needs_login": needs_login}))
         return
 
     if command == 'fetch':
@@ -334,25 +391,22 @@ def main():
             url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
             res = requests.get(url, headers=headers)
             
-            if res.status_code != 200:
-                print(json.dumps({"error": f"Fetch failed ({res.status_code}). Akun ini mungkin memerlukan cookies untuk diakses."}))
-                return
-
             print("[PROGRESS] 25%")
-            data = res.json()
+            data = safe_json_response(res)
             user = data['data']['user']
             
             posts = []
-            if not user['is_private'] or cookies_str:
+            # Try to get posts from profile info first as it's often more reliable for public accounts without cookies
+            try:
+                posts = get_posts_from_profile_api(user)
+            except Exception:
+                pass
+
+            if not posts and (not user['is_private'] or cookies_str):
                 try:
                     posts = get_posts_from_feed_api(user['id'], headers)
                 except Exception:
                     posts = []
-                if not posts:
-                    try:
-                        posts = get_posts_from_profile_api(user)
-                    except Exception:
-                        posts = []
                 if not posts:
                     try:
                         posts = get_posts_from_instaloader(L, user['id'])
@@ -364,27 +418,34 @@ def main():
             if not user['is_private'] or cookies_str:
                 h_url = f"https://www.instagram.com/api/v1/highlights/{user['id']}/highlights_tray/"
                 h_res = requests.get(h_url, headers=headers)
-                if h_res.status_code == 200:
-                    tray = h_res.json().get('tray', [])
-                    tray_len = len(tray)
-                    for i, h in enumerate(tray):
-                        highlight_id = h['id']
-                        slides = get_highlight_slides(highlight_id, headers)
-                        cover = h['cover_media']['cropped_image_version']['url']
-                        highlights.append({
-                            "id": highlight_id,
-                            "title": h['title'],
-                            "cover": cover,
-                            "url": slides[0]["url"] if slides else cover,
-                            "videoUrl": slides[0].get("videoUrl", "") if slides else "",
-                            "type": "highlight",
-                            "slides": slides
-                        })
-                        # Progress from 50% to 80% for highlights
-                        p = 50 + int((i + 1) / tray_len * 30) if tray_len > 0 else 80
-                        print(f"[PROGRESS] {p}%")
-                else:
+                try:
+                    # Highlights tray API might return 404 or empty if no highlights
+                    if h_res.status_code == 200:
+                        h_data = safe_json_response(h_res)
+                        tray = h_data.get('tray', [])
+                        tray_len = len(tray)
+                        for i, h in enumerate(tray):
+                            highlight_id = h['id']
+                            slides = get_highlight_slides(highlight_id, headers)
+                            cover = h['cover_media']['cropped_image_version']['url']
+                            highlights.append({
+                                "id": highlight_id,
+                                "title": h['title'],
+                                "cover": cover,
+                                "url": slides[0]["url"] if slides else cover,
+                                "videoUrl": slides[0].get("videoUrl", "") if slides else "",
+                                "type": "highlight",
+                                "slides": slides
+                            })
+                            # Progress from 50% to 80% for highlights
+                            p = 50 + int((i + 1) / tray_len * 30) if tray_len > 0 else 80
+                            print(f"[PROGRESS] {p}%")
+                    else:
+                        print("[PROGRESS] 80%")
+                except Exception:
                     print("[PROGRESS] 80%")
+            else:
+                print("[PROGRESS] 80%")
 
             stories = []
             if not user['is_private'] or cookies_str:
@@ -403,7 +464,7 @@ def main():
                 "followed_by_viewer": user.get('followed_by_viewer', False),
                 "counts": {
                     "posts": user.get('edge_owner_to_timeline_media', {}).get('count'),
-                    "highlights": len(highlights),
+                    "highlights": max(len(highlights), user.get('highlight_reel_count', 0)),
                     "stories": len(stories)
                 }
             }))
@@ -424,10 +485,10 @@ def main():
             # Safe lookup
             headers = get_headers(cookies_str, username)
             res = requests.get(f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}", headers=headers)
-            if res.status_code == 200:
-                user_data = res.json()['data']['user']
+            try:
+                user_data = safe_json_response(res)['data']['user']
                 profile = instaloader.Profile.from_id(L.context, int(user_data['id']))
-            else:
+            except Exception:
                 profile = instaloader.Profile.from_username(L.context, username)
 
             target_type = sys.argv[4] if len(sys.argv) > 4 else 'all'
