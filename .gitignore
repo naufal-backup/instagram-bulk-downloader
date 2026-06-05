@@ -11,3 +11,4 @@ yarn-error.log*
 get-pip.py
 icon.png
 .DS_Store
+test_guest_headers_h.py
