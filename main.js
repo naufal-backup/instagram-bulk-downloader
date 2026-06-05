@@ -39,7 +39,7 @@ ipcMain.on('fetch-preview', async (event, { username, cookies }) => {
   const log = (msg) => event.reply('status-update', msg);
   log(`Fetching preview for ${username} via Instaloader...`);
 
-  execFile(pythonExe, [bridgePath, 'fetch', username, cookies], (error, stdout, stderr) => {
+  execFile(pythonExe, [bridgePath, 'fetch', username, cookies], { maxBuffer: 1024 * 1024 * 100 }, (error, stdout, stderr) => {
     if (error) {
       log(`Bridge error: ${error.message}`);
       return;
@@ -66,7 +66,7 @@ ipcMain.on('bulk-download', async (event, { type, username, cookies }) => {
   const log = (msg) => event.reply('status-update', msg);
   log(`Starting Instaloader bulk download for ${type}...`);
 
-  execFile(pythonExe, [bridgePath, 'download', username, cookies, type], (error, stdout, stderr) => {
+  execFile(pythonExe, [bridgePath, 'download', username, cookies, type], { maxBuffer: 1024 * 1024 * 100 }, (error, stdout, stderr) => {
     if (error) {
       log(`Download error: ${error.message}`);
       return;
