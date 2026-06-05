@@ -8,7 +8,8 @@ import uuid
 
 PREVIEW_POST_LIMIT = 36
 
-def get_headers(cookies_str, username=""):
+def get_headers(cookies_str="", username=""):
+    cookies_str = cookies_str or ""
     csrf_token = ""
     for c in cookies_str.split(';'):
         if 'csrftoken=' in c:
@@ -67,12 +68,13 @@ def apply_cookies_to_loader(L, cookies_str):
     return cookies_dict
 
 def verify_and_setup_session(L, cookies_str):
+    if not cookies_str:
+        return True, "No cookies"
+        
     cookies_dict = apply_cookies_to_loader(L, cookies_str)
 
     # Use requests to verify session first
     headers = get_headers(cookies_str)
-    # Fetching 'topsearch' or 'web_profile_info' for a random known public profile to check login status
-    # Or even better: https://www.instagram.com/api/v1/users/web_profile_info/?username=instagram
     test_url = "https://www.instagram.com/api/v1/users/web_profile_info/?username=instagram"
     res = requests.get(test_url, headers=headers)
     
@@ -81,7 +83,6 @@ def verify_and_setup_session(L, cookies_str):
 
     try:
         data = res.json()
-        viewer = data.get('data', {}).get('user', {})
         return True, "Success"
     except Exception as e:
         return False, str(e)
@@ -297,12 +298,10 @@ def main():
 
     command = sys.argv[1] 
     username = sys.argv[2]
-    cookies_str = sys.argv[3]
+    cookies_str = sys.argv[3] if len(sys.argv) > 3 else ""
 
     if command == 'check-privacy':
-        headers = get_headers(cookies_str, username) if cookies_str else {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        }
+        headers = get_headers(cookies_str, username)
         try:
             url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
             res = requests.get(url, headers=headers)
@@ -315,27 +314,28 @@ def main():
                     "id": user['id']
                 }))
             else:
-                print(json.dumps({"error": f"Failed to check privacy ({res.status_code})"}))
+                print(json.dumps({"error": f"API Error ({res.status_code})", "needs_login": True}))
         except Exception as e:
             print(json.dumps({"error": str(e)}))
         return
 
     if command == 'fetch':
-        headers = get_headers(cookies_str, username) if cookies_str else {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        }
+        headers = get_headers(cookies_str, username)
         print("[PROGRESS] 5%")
         try:
             L = make_loader()
             if cookies_str:
-                verify_and_setup_session(L, cookies_str)
+                ok, msg = verify_and_setup_session(L, cookies_str)
+                if not ok:
+                    print(json.dumps({"error": f"Session invalid: {msg}"}))
+                    return
             print("[PROGRESS] 15%")
 
             url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
             res = requests.get(url, headers=headers)
             
             if res.status_code != 200:
-                print(json.dumps({"error": f"Profile fetch failed ({res.status_code}). Session might be invalid or required for this account."}))
+                print(json.dumps({"error": f"Fetch failed ({res.status_code}). Akun ini mungkin memerlukan cookies untuk diakses."}))
                 return
 
             print("[PROGRESS] 25%")
@@ -414,10 +414,11 @@ def main():
     elif command == 'download':
         L = make_loader()
         
-        ok, msg = verify_and_setup_session(L, cookies_str)
-        if not ok:
-            print(json.dumps({"error": f"Login Required: {msg}"}))
-            return
+        if cookies_str:
+            ok, msg = verify_and_setup_session(L, cookies_str)
+            if not ok:
+                print(json.dumps({"error": f"Login Required: {msg}"}))
+                return
             
         try:
             # Safe lookup
