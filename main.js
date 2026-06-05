@@ -34,12 +34,17 @@ const dataDir = path.join(writableBase, 'data');
 const targetsPath = path.join(dataDir, 'targets.json');
 const cookiesPath = path.join(dataDir, 'cookies.json');
 
+let activeFetchChild = null;
+
 // IPC: Fetch Preview Data
 ipcMain.on('fetch-preview', async (event, { username, cookies }) => {
+  if (activeFetchChild) activeFetchChild.kill();
+
   const log = (msg) => event.reply('status-update', msg);
   log(`Fetching preview for ${username} via Instaloader...`);
 
   const child = spawn(pythonExe, [bridgePath, 'fetch', username, cookies]);
+  activeFetchChild = child;
   let stdoutData = '';
   let stderrData = '';
 
@@ -61,6 +66,11 @@ ipcMain.on('fetch-preview', async (event, { username, cookies }) => {
   });
 
   child.on('close', (code) => {
+    activeFetchChild = null;
+    if (code === null) {
+      log('Fetch cancelled by user.');
+      return;
+    }
     if (code !== 0) {
       log(`Bridge exited with code ${code}. Error: ${stderrData}`);
       return;
@@ -84,6 +94,14 @@ ipcMain.on('fetch-preview', async (event, { username, cookies }) => {
       log(`Parse error: ${cleanStdout.substring(0, 500)}...`);
     }
   });
+});
+
+// IPC: Cancel Fetch
+ipcMain.on('cancel-fetch', () => {
+  if (activeFetchChild) {
+    activeFetchChild.kill();
+    activeFetchChild = null;
+  }
 });
 
 // IPC: Check Privacy

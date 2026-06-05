@@ -1,6 +1,7 @@
 const { ipcRenderer } = require('electron');
 
 const fetchBtn = document.getElementById('fetchBtn');
+const cancelFetchBtn = document.getElementById('cancelFetchBtn');
 const usernameInput = document.getElementById('username');
 const cookiesInput = document.getElementById('cookies');
 const statusDiv = document.getElementById('status');
@@ -40,6 +41,11 @@ const previewMutedStorageKey = 'previewMuted';
 initTheme();
 initPreviewMute();
 initSavedData();
+
+cancelFetchBtn.addEventListener('click', () => {
+  ipcRenderer.send('cancel-fetch');
+  setFetching(false);
+});
 
 let privacyCheckTimeout = null;
 
@@ -590,7 +596,11 @@ function renderSummary(data) {
 function setFetching(value) {
   isFetching = value;
   fetchBtn.disabled = value;
-  fetchBtn.innerText = value ? 'Fetching...' : 'Fetch Preview';
+  fetchBtn.style.display = value ? 'none' : 'block';
+  cancelFetchBtn.style.display = value ? 'block' : 'none';
+  if (!value) {
+    progressContainer.style.display = 'none';
+  }
 }
 
 function setEmptyState(elementId, message) {
