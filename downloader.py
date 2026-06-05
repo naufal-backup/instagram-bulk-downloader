@@ -301,9 +301,11 @@ def main():
 
     if command == 'fetch':
         headers = get_headers(cookies_str, username)
+        print("[PROGRESS] 5%")
         try:
             L = make_loader()
             verify_and_setup_session(L, cookies_str)
+            print("[PROGRESS] 15%")
 
             url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
             res = requests.get(url, headers=headers)
@@ -312,6 +314,7 @@ def main():
                 print(json.dumps({"error": f"Profile fetch failed ({res.status_code}). Session might be invalid or expired."}))
                 return
 
+            print("[PROGRESS] 25%")
             data = res.json()
             user = data['data']['user']
             
@@ -331,11 +334,14 @@ def main():
                 except Exception:
                     posts = []
 
+            print("[PROGRESS] 50%")
             highlights = []
             h_url = f"https://www.instagram.com/api/v1/highlights/{user['id']}/highlights_tray/"
             h_res = requests.get(h_url, headers=headers)
             if h_res.status_code == 200:
-                for h in h_res.json().get('tray', []):
+                tray = h_res.json().get('tray', [])
+                tray_len = len(tray)
+                for i, h in enumerate(tray):
                     highlight_id = h['id']
                     slides = get_highlight_slides(highlight_id, headers)
                     cover = h['cover_media']['cropped_image_version']['url']
@@ -348,6 +354,11 @@ def main():
                         "type": "highlight",
                         "slides": slides
                     })
+                    # Progress from 50% to 80% for highlights
+                    p = 50 + int((i + 1) / tray_len * 30) if tray_len > 0 else 80
+                    print(f"[PROGRESS] {p}%")
+            else:
+                print("[PROGRESS] 80%")
 
             stories = get_stories_from_api(user['id'], headers)
             if not stories:
@@ -356,6 +367,7 @@ def main():
                 except Exception:
                     stories = []
 
+            print("[PROGRESS] 95%")
             print(json.dumps({
                 "posts": posts, "highlights": highlights, "stories": stories,
                 "userId": user['id'], "is_private": user['is_private'],
@@ -366,6 +378,7 @@ def main():
                     "stories": len(stories)
                 }
             }))
+            print("[PROGRESS] 100%")
         except Exception as e:
             print(json.dumps({"error": f"Fetch internal error: {str(e)}"}))
 

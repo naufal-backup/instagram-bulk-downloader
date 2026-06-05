@@ -4,6 +4,8 @@ const fetchBtn = document.getElementById('fetchBtn');
 const usernameInput = document.getElementById('username');
 const cookiesInput = document.getElementById('cookies');
 const statusDiv = document.getElementById('status');
+const progressBar = document.getElementById('progressBar');
+const progressContainer = document.querySelector('.progress-container');
 const profileSummary = document.getElementById('profileSummary');
 const themeToggle = document.getElementById('themeToggle');
 const targetSelect = document.getElementById('targetSelect');
@@ -39,6 +41,10 @@ function log(message) {
   statusDiv.innerText = `[${time}] ${message}`;
 }
 
+function updateProgressBar(percent) {
+  progressBar.style.width = `${percent}%`;
+}
+
 function getProcessedCookies() {
   let cookies = cookiesInput.value.trim();
   try {
@@ -59,6 +65,8 @@ fetchBtn.addEventListener('click', () => {
 
   previewCache.clear();
   setFetching(true);
+  updateProgressBar(0);
+  progressContainer.style.display = 'block';
   setEmptyState('stories-list', 'Mengambil story...');
   setEmptyState('highlights-list', 'Mengambil highlight...');
   setEmptyState('posts-list', 'Mengambil post...');
@@ -66,10 +74,18 @@ fetchBtn.addEventListener('click', () => {
   ipcRenderer.send('fetch-preview', { username, cookies });
 });
 
+ipcRenderer.on('fetch-progress', (event, percent) => {
+  updateProgressBar(percent);
+});
+
 ipcRenderer.on('status-update', (event, message) => {
   log(message);
   if (/Fetch complete|error|failed|invalid|Parse error/i.test(message)) {
     setFetching(false);
+    setTimeout(() => {
+      progressContainer.style.display = 'none';
+      updateProgressBar(0);
+    }, 500);
   }
 });
 

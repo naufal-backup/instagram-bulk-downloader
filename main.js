@@ -24,7 +24,7 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 
 const resourceBase = app.isPackaged ? process.resourcesPath : __dirname;
 const writableBase = app.isPackaged ? path.dirname(process.execPath) : __dirname;
@@ -39,13 +39,38 @@ ipcMain.on('fetch-preview', async (event, { username, cookies }) => {
   const log = (msg) => event.reply('status-update', msg);
   log(`Fetching preview for ${username} via Instaloader...`);
 
-  execFile(pythonExe, [bridgePath, 'fetch', username, cookies], { maxBuffer: 1024 * 1024 * 100 }, (error, stdout, stderr) => {
-    if (error) {
-      log(`Bridge error: ${error.message}`);
+  const child = spawn(pythonExe, [bridgePath, 'fetch', username, cookies]);
+  let stdoutData = '';
+  let stderrData = '';
+
+  child.stdout.on('data', (data) => {
+    const chunk = data.toString();
+    stdoutData += chunk;
+
+    // Check for progress markers: [PROGRESS] 50%
+    const progressMatch = chunk.match(/\[PROGRESS\] (\d+)%/g);
+    if (progressMatch) {
+      const lastMatch = progressMatch[progressMatch.length - 1];
+      const percent = lastMatch.match(/(\d+)%/)[1];
+      event.reply('fetch-progress', parseInt(percent));
+    }
+  });
+
+  child.stderr.on('data', (data) => {
+    stderrData += data.toString();
+  });
+
+  child.on('close', (code) => {
+    if (code !== 0) {
+      log(`Bridge exited with code ${code}. Error: ${stderrData}`);
       return;
     }
+
+    // Filter out progress lines before parsing JSON
+    const cleanStdout = stdoutData.replace(/\[PROGRESS\] \d+%\r?\n/g, '').trim();
+    
     try {
-      const data = JSON.parse(stdout);
+      const data = JSON.parse(cleanStdout);
       if (data.error) {
         log(`Instaloader error: ${data.error}`);
       } else {
@@ -56,7 +81,7 @@ ipcMain.on('fetch-preview', async (event, { username, cookies }) => {
         log(`Fetch complete. Posts: ${postCount}, Stories: ${storyCount}, Highlights: ${highlightCount}. Account: ${data.is_private ? 'PRIVATE' : 'PUBLIC'}, Followed: ${data.followed_by_viewer ? 'YES' : 'NO'}`);
       }
     } catch (e) {
-      log(`Parse error: ${stdout}`);
+      log(`Parse error: ${cleanStdout.substring(0, 500)}...`);
     }
   });
 });

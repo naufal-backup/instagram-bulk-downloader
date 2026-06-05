@@ -308,6 +308,23 @@
       max-height: 150px; overflow-y: auto; white-space: pre-wrap;
     }
 
+    .progress-container {
+      margin-top: 14px;
+      height: 12px;
+      background-color: var(--soft);
+      border-radius: 6px;
+      overflow: hidden;
+      display: none;
+      border: 1px solid var(--line);
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background-color: var(--primary);
+      transition: width 0.3s ease;
+    }
+
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -535,6 +552,7 @@
     </div>
 
     <div id="status">Ready. Enter username and cookies, then click Fetch.</div>
+    <div class="progress-container"><div id="progressBar" class="progress-bar"></div></div>
     <div id="profileSummary" class="summary"></div>
 
     <div class="content-sections">
